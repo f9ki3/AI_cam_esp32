@@ -1,6 +1,6 @@
 /*********
-  ESP32-CAM Web Server + MJPEG Stream + Servo Control + Flash Control
-  Fixed: Single HTTP Server + Flash standby on stream
+  ESP32-CAM Web Server + MJPEG Stream + Servo Control + Flash + Toggle Standby
+  Homepage: Professional API Documentation
 *********/
 
 #include "esp_camera.h"
@@ -20,7 +20,8 @@ const char* password = "123456789";
 
 // Pins
 #define SERVO_PIN     14
-#define FLASH_PIN     4     // ESP32-CAM onboard flash LED
+#define FLASH_PIN     4      // Onboard flash LED
+#define BUTTON_PIN    13     // Tactile button
 
 Servo myServo;
 
@@ -55,16 +56,32 @@ static const char* STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: %u
 
 httpd_handle_t camera_httpd = NULL;
 
-// Flash state
+// States
 bool flashOn = false;
+bool servoOpen = false;        // false = 90° (closed), true = 170° (open/standby)
+unsigned long lastButtonTime = 0;
+const unsigned long debounceDelay = 200;  // ms
 
-// ==================== HELPER: FLASH CONTROL ====================
+// ==================== HELPER: FLASH ====================
 void setFlash(bool state) {
   flashOn = state;
   digitalWrite(FLASH_PIN, state ? HIGH : LOW);
 }
 
-// ==================== STREAM HANDLER (Flash standby ON) ====================
+// ==================== HELPER: SERVO TOGGLE ====================
+void toggleServo() {
+  servoOpen = !servoOpen;
+  
+  if (servoOpen) {
+    Serial.println("→ Servo OPEN / Standby (170°)");
+    myServo.write(170);
+  } else {
+    Serial.println("→ Servo CLOSED (90°)");
+    myServo.write(90);
+  }
+}
+
+// ==================== STREAM HANDLER ====================
 static esp_err_t stream_handler(httpd_req_t *req) {
   camera_fb_t * fb = NULL;
   esp_err_t res = ESP_OK;
@@ -72,8 +89,13 @@ static esp_err_t stream_handler(httpd_req_t *req) {
   uint8_t * _jpg_buf = NULL;
   char * part_buf[64];
 
-  // Turn flash ON when stream starts (standby/active mode)
   setFlash(true);
+
+  // Allow browser to use this stream as a source for canvas/frame processing.
+  // Needed for inference code that draws the MJPEG frame into a canvas.
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Methods", "GET, OPTIONS");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Headers", "Content-Type");
 
   res = httpd_resp_set_type(req, STREAM_CONTENT_TYPE);
   if (res != ESP_OK) {
@@ -122,70 +144,174 @@ static esp_err_t stream_handler(httpd_req_t *req) {
     }
 
     if (res != ESP_OK) break;
-
-    delay(50); // Adjust for FPS / performance
+    delay(50);
   }
 
-  // Turn flash OFF when stream ends
   setFlash(false);
   return res;
 }
 
-// ==================== INDEX PAGE ====================
+// ==================== INDEX PAGE - API DOCUMENTATION ====================
 static esp_err_t index_handler(httpd_req_t *req) {
   const char* html = R"rawliteral(
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>ESP32-CAM</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ESP32-CAM API</title>
   <style>
-    body { font-family: Arial; text-align: center; margin: 0; padding: 20px; background: #f0f0f0;}
-    img { width: 100%; max-width: 800px; border: 2px solid #333; }
-    .btn { padding: 15px 30px; margin: 10px; font-size: 18px; cursor: pointer; border: none; border-radius: 8px; }
-    .btn-on { background: #4CAF50; color: white; }
-    .btn-off { background: #f44336; color: white; }
-    .status { font-size: 16px; margin: 10px; }
+    body { 
+      font-family: 'Segoe UI', Arial, sans-serif; 
+      margin: 0; 
+      padding: 40px; 
+      background: #f8f9fa; 
+      color: #333;
+      line-height: 1.6;
+    }
+    .container { 
+      max-width: 900px; 
+      margin: 0 auto; 
+      background: white; 
+      padding: 40px; 
+      border-radius: 12px; 
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+    h1 { 
+      color: #1a73e8; 
+      border-bottom: 3px solid #1a73e8; 
+      padding-bottom: 10px; 
+    }
+    h2 { 
+      color: #202124; 
+      margin-top: 30px; 
+    }
+    table { 
+      width: 100%; 
+      border-collapse: collapse; 
+      margin: 20px 0; 
+    }
+    th, td { 
+      padding: 12px 15px; 
+      text-align: left; 
+      border-bottom: 1px solid #ddd; 
+    }
+    th { 
+      background: #f1f3f4; 
+      color: #202124; 
+    }
+    .code { 
+      background: #f1f3f4; 
+      padding: 2px 6px; 
+      border-radius: 4px; 
+      font-family: monospace; 
+    }
+    .note { 
+      background: #e8f0fe; 
+      padding: 15px; 
+      border-left: 5px solid #1a73e8; 
+      margin: 20px 0; 
+    }
+    footer { 
+      margin-top: 50px; 
+      text-align: center; 
+      color: #666; 
+      font-size: 0.9em; 
+    }
   </style>
 </head>
 <body>
-  <h1>ESP32-CAM Live Stream</h1>
-  <img src="/stream" alt="Live Stream" />
-  
-  <h2>Controls</h2>
-  <button class="btn" onclick="trigger(1)">Servo Type 1 (10°)</button>
-  <button class="btn" onclick="trigger(2)">Servo Type 2 (170°)</button>
-  
-  <h2>Flash Control</h2>
-  <button class="btn btn-on" onclick="setFlash(1)">Flash ON</button>
-  <button class="btn btn-off" onclick="setFlash(0)">Flash OFF</button>
-  <div class="status" id="flashStatus">Flash: OFF</div>
+  <div class="container">
+    <h1>ESP32-CAM API Documentation</h1>
+    <p><strong>Device IP:</strong> <span class="code" id="ip"></span></p>
+
+    <h2>Available Endpoints</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Method</th>
+          <th>Endpoint</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>GET</td>
+          <td><a href="/" class="code">/</a></td>
+          <td>This API documentation</td>
+        </tr>
+        <tr>
+          <td>GET</td>
+          <td><a href="/stream" class="code">/stream</a></td>
+          <td>MJPEG live video stream (flash turns ON automatically)</td>
+        </tr>
+        <tr>
+          <td>GET</td>
+          <td><span class="code">/detect?type=1</span></td>
+          <td>Servo momentary move to 10° then return to 90°</td>
+        </tr>
+        <tr>
+          <td>GET</td>
+          <td><span class="code">/detect?type=2</span></td>
+          <td>Servo momentary move to 170° then return to 90°</td>
+        </tr>
+        <tr>
+          <td>GET</td>
+          <td><a href="/toggle" class="code">/toggle</a></td>
+          <td>Toggle servo between 90° (closed) and 170° (open/standby)</td>
+        </tr>
+        <tr>
+          <td>GET</td>
+          <td><span class="code">/flash?state=1</span></td>
+          <td>Turn flash LED ON</td>
+        </tr>
+        <tr>
+          <td>GET</td>
+          <td><span class="code">/flash?state=0</span></td>
+          <td>Turn flash LED OFF</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>Hardware Controls</h2>
+    <div class="note">
+      <strong>Physical Button (GPIO 13):</strong> Press to toggle servo between 90° and 170° (with debounce).
+    </div>
+
+    <h2>Examples</h2>
+    <pre><code>curl http://&lt;IP&gt;/toggle
+curl http://&lt;IP&gt;/flash?state=1
+curl http://&lt;IP&gt;/detect?type=1</code></pre>
+
+    <footer>
+      ESP32-CAM API Server • Minimal &amp; Professional Interface
+    </footer>
+  </div>
 
   <script>
-    function trigger(type) {
-      fetch(`/detect?type=${type}`)
-        .then(response => response.text())
-        .then(data => console.log(data));
-    }
-
-    function setFlash(state) {
-      fetch(`/flash?state=${state}`)
-        .then(response => response.text())
-        .then(data => {
-          console.log(data);
-          document.getElementById('flashStatus').textContent = 
-            'Flash: ' + (state == 1 ? 'ON' : 'OFF');
-        });
-    }
+    // Display current IP
+    fetch('/ip')
+      .then(r => r.text())
+      .then(ip => document.getElementById('ip').textContent = ip)
+      .catch(() => document.getElementById('ip').textContent = window.location.hostname);
   </script>
 </body>
 </html>
 )rawliteral";
 
+  httpd_resp_set_type(req, "text/html");
   httpd_resp_send(req, html, strlen(html));
   return ESP_OK;
 }
 
-// ==================== DETECT API (Servo) ====================
+// ==================== IP INFO (for documentation) ====================
+static esp_err_t ip_handler(httpd_req_t *req) {
+  String ip = WiFi.localIP().toString();
+  httpd_resp_send(req, ip.c_str(), ip.length());
+  return ESP_OK;
+}
+
+// ==================== DETECT API ====================
 static esp_err_t detect_handler(httpd_req_t *req) {
   char query[32];
   if (httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK) {
@@ -194,12 +320,12 @@ static esp_err_t detect_handler(httpd_req_t *req) {
       int type = atoi(param);
 
       if (type == 1) {
-        Serial.println("→ Servo to 10°");
+        Serial.println("→ Servo Type 1 (10°)");
         myServo.write(10);
         delay(800);
         myServo.write(90);
       } else if (type == 2) {
-        Serial.println("→ Servo to 170°");
+        Serial.println("→ Servo Type 2 (170° momentary)");
         myServo.write(170);
         delay(800);
         myServo.write(90);
@@ -213,6 +339,14 @@ static esp_err_t detect_handler(httpd_req_t *req) {
     }
   }
   httpd_resp_send(req, "Missing parameter", HTTPD_RESP_USE_STRLEN);
+  return ESP_OK;
+}
+
+// ==================== TOGGLE API ====================
+static esp_err_t toggle_handler(httpd_req_t *req) {
+  toggleServo();
+  String msg = servoOpen ? "Servo OPEN / STANDBY (170°)" : "Servo CLOSED (90°)";
+  httpd_resp_send(req, msg.c_str(), msg.length());
   return ESP_OK;
 }
 
@@ -239,57 +373,35 @@ void startCameraServer() {
   config.max_uri_handlers = 10;
   config.stack_size = 8192;
 
-  // Index page
-  httpd_uri_t index_uri = {
-    .uri       = "/",
-    .method    = HTTP_GET,
-    .handler   = index_handler,
-    .user_ctx  = NULL
-  };
-
-  // Stream (with flash standby)
-  httpd_uri_t stream_uri = {
-    .uri       = "/stream",
-    .method    = HTTP_GET,
-    .handler   = stream_handler,
-    .user_ctx  = NULL
-  };
-
-  // Servo control
-  httpd_uri_t detect_uri = {
-    .uri       = "/detect",
-    .method    = HTTP_GET,
-    .handler   = detect_handler,
-    .user_ctx  = NULL
-  };
-
-  // Flash control
-  httpd_uri_t flash_uri = {
-    .uri       = "/flash",
-    .method    = HTTP_GET,
-    .handler   = flash_handler,
-    .user_ctx  = NULL
-  };
+  httpd_uri_t index_uri   = { .uri = "/",      .method = HTTP_GET, .handler = index_handler,   .user_ctx = NULL };
+  httpd_uri_t stream_uri  = { .uri = "/stream", .method = HTTP_GET, .handler = stream_handler,  .user_ctx = NULL };
+  httpd_uri_t detect_uri  = { .uri = "/detect", .method = HTTP_GET, .handler = detect_handler,  .user_ctx = NULL };
+  httpd_uri_t toggle_uri  = { .uri = "/toggle", .method = HTTP_GET, .handler = toggle_handler,  .user_ctx = NULL };
+  httpd_uri_t flash_uri   = { .uri = "/flash",  .method = HTTP_GET, .handler = flash_handler,   .user_ctx = NULL };
+  httpd_uri_t ip_uri      = { .uri = "/ip",     .method = HTTP_GET, .handler = ip_handler,      .user_ctx = NULL };
 
   if (httpd_start(&camera_httpd, &config) == ESP_OK) {
     httpd_register_uri_handler(camera_httpd, &index_uri);
     httpd_register_uri_handler(camera_httpd, &stream_uri);
     httpd_register_uri_handler(camera_httpd, &detect_uri);
+    httpd_register_uri_handler(camera_httpd, &toggle_uri);
     httpd_register_uri_handler(camera_httpd, &flash_uri);
-    Serial.println("HTTP server started successfully on port 80");
+    httpd_register_uri_handler(camera_httpd, &ip_uri);
+    Serial.println("HTTP server started successfully");
   } else {
     Serial.println("Failed to start HTTP server");
   }
 }
 
 void setup() {
-  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); // Disable brownout
+  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
 
   Serial.begin(115200);
 
-  // Flash pin setup
+  // Pin setup
   pinMode(FLASH_PIN, OUTPUT);
-  setFlash(false);  // Start with flash OFF
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  setFlash(false);
 
   // Servo setup
   ESP32PWM::allocateTimer(0);
@@ -324,7 +436,7 @@ void setup() {
   config.pixel_format = PIXFORMAT_JPEG;
 
   if (psramFound()) {
-    config.frame_size = FRAMESIZE_SVGA;   // 800x600
+    config.frame_size = FRAMESIZE_SVGA;
     config.jpeg_quality = 10;
     config.fb_count = 2;
   } else {
@@ -335,26 +447,31 @@ void setup() {
 
   esp_err_t err = esp_camera_init(&config);
   if (err != ESP_OK) {
-    Serial.printf("Camera init failed with error 0x%x\n", err);
+    Serial.printf("Camera init failed 0x%x\n", err);
     return;
   }
 
   // WiFi
   WiFi.begin(ssid, password);
   WiFi.setSleep(false);
-
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
   }
 
   Serial.println("\nWiFi connected");
-  Serial.print("IP Address: http://");
+  Serial.print("IP: http://");
   Serial.println(WiFi.localIP());
 
   startCameraServer();
 }
 
 void loop() {
-  delay(1000);
+  // Physical button toggle
+  if (digitalRead(BUTTON_PIN) == LOW && millis() - lastButtonTime > debounceDelay) {
+    lastButtonTime = millis();
+    toggleServo();
+    delay(50);
+  }
+  delay(10);
 }

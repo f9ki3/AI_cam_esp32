@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Automation Vision Portal</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  
+  <style>
+    /* Dark Theme Default */
+    :root {
+      --bg-dark: #0f172a;
+      --panel-bg: #1e293b;
+      --accent-blue: #3b82f6;
+      --accent-green: #10b981;
+      --accent-red: #ef4444;
+      --accent-purple: #8b5cf6;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --border: #334155;
+      --video-bg: #020617;
+      --title-gradient-start: #3b82f6;
+      --title-gradient-end: #60a5fa;
+    }
+
+    /* Light Theme - Clean White Background, Blue Fonts & Accents */
+    [data-theme="light"] {
+      --bg-dark: #ffffff;
+      --panel-bg: #f8fafc;
+      --accent-blue: #1d4ed8;
+      --accent-green: #047857;
+      --accent-red: #b91c1c;
+      --accent-purple: #6d28d9;
+      --text-main: #1e3a8a; 
+      --text-muted: #64748b;
+      --border: #cbd5e1;
+      --video-bg: #f1f5f9;
+      --title-gradient-start: #1e40af;
+      --title-gradient-end: #3b82f6;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 950px;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+    }
+
+    @media (min-width: 768px) {
+      .container { grid-template-columns: 1.2fr 1fr; }
+    }
+
+    header {
+      grid-column: 1 / -1;
+      text-align: center;
+      margin-bottom: 0.5rem;
+    }
+
+    header h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(to right, var(--title-gradient-start), var(--title-gradient-end));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    header p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+    }
+
+    .card {
+      background-color: var(--panel-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.5rem;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+      transition: background-color 0.3s ease, border-color 0.3s ease;
+    }
+
+    .viewport-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.25rem;
+    }
+
+    .video-wrapper {
+      position: relative;
+      width: 100%;
+      max-width: 440px;
+      aspect-ratio: 4/3;
+      background: var(--video-bg);
+      border-radius: 12px;
+      border: 2px solid var(--border);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background-color 0.3s ease, border-color 0.3s ease;
+    }
+
+    #stream-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: none;
+    }
+
+    .video-placeholder {
+      position: absolute;
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .video-placeholder i {
+      font-size: 2rem;
+    }
+
+    .controls-row {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      width: 100%;
+      max-width: 440px;
+    }
+
+    .btn-group-main {
+      display: flex;
+      gap: 0.5rem;
+      width: 100%;
+    }
+
+    button {
+      padding: 0.8rem 1rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+    }
+
+    .btn-start {
+      flex: 1.2;
+      background-color: var(--accent-blue);
+      color: white;
+    }
+    .btn-start:hover { opacity: 0.9; }
+
+    .btn-stop {
+      flex: 1;
+      background-color: var(--border);
+      color: var(--text-main);
+    }
+    .btn-stop:hover { opacity: 0.8; }
+
+    .btn-theme {
+      flex: 1;
+      background-color: var(--border);
+      color: var(--text-main);
+      border: 1px solid transparent;
+    }
+    .btn-theme:hover { opacity: 0.8; }
+
+    .btn-toggle-gate {
+      width: 100%;
+      background-color: var(--accent-purple);
+      color: white;
+    }
+    .btn-toggle-gate:hover { opacity: 0.9; }
+
+    button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .status-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .badge-item {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .badge-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      font-weight: 700;
+    }
+
+    .status-value {
+      font-size: 0.95rem;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    #phase-badge {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      background-color: var(--bg-dark);
+      border: 1px solid var(--border);
+      transition: all 0.3s ease;
+    }
+
+    /* Dynamic Phase Accent Styling */
+    .phase-preview { background-color: rgba(59, 130, 246, 0.12) !important; border-color: var(--accent-blue) !important; color: var(--accent-blue); }
+    .phase-capture { background-color: rgba(245, 158, 11, 0.12) !important; border-color: #f59e0b !important; color: #d97706; }
+    .phase-predict { background-color: rgba(139, 92, 246, 0.12) !important; border-color: var(--accent-purple) !important; color: var(--accent-purple); }
+    .phase-api { background-color: rgba(16, 185, 129, 0.12) !important; border-color: var(--accent-green) !important; color: var(--accent-green); }
+    .phase-idle { color: var(--text-muted); }
+
+    .prediction-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      margin-top: 0.25rem;
+    }
+
+    .prediction-bar-container {
+      background: var(--bg-dark);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .pred-meta {
+      display: flex;
+      justify-content: space-between;
+      position: relative;
+      z-index: 2;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+
+    .pred-fill {
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      background: linear-gradient(90deg, rgba(59,130,246,0.12) 0%, rgba(59,130,246,0.25) 100%);
+      border-right: 2px solid var(--accent-blue);
+      z-index: 1;
+      transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .spin {
+      animation: rotate 1s linear infinite;
+    }
+    @keyframes rotate {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <h1>Automation Vision Dashboard</h1>
+      <p>ESP32-CAM Control Panel &bull; Edge Inference System</p>
+    </header>
+
+    <div class="card viewport-container">
+      <div class="video-wrapper">
+        <div id="video-placeholder" class="video-placeholder">
+          <i class="bi bi-camera-video-off"></i>
+          <span>Stream Standby</span>
+        </div>
+        <img id="stream-img" alt="Camera Feed" crossorigin="anonymous" />
+      </div>
+      
+      <div class="controls-row">
+        <div class="btn-group-main">
+          <button id="btn-start" class="btn-start" onclick="startInference()">
+            <i class="bi bi-play-fill"></i> Run
+          </button>
+          <button id="btn-stop" class="btn-stop" onclick="stopInference()" disabled>
+            <i class="bi bi-stop-fill"></i> Stop
+          </button>
+          <button class="btn-theme" onclick="toggleTheme()">
+            <i id="theme-icon" class="bi bi-sun-fill"></i> <span id="theme-text">Light</span>
+          </button>
+        </div>
+
+        <button id="btn-toggle" class="btn-toggle-gate" onclick="toggleGate()">
+          <i class="bi bi-arrow-left-right"></i> Toggle Open/Close
+        </button>
+      </div>
+    </div>
+
+    <div class="card status-panel">
+      <div class="badge-item">
+        <div class="badge-label">System State</div>
+        <div id="status-val" class="status-value" style="color: var(--text-muted);">
+          <i class="bi bi-circle-fill" style="font-size: 0.65rem;"></i> Disconnected
+        </div>
+      </div>
+
+      <div class="badge-item">
+        <div class="badge-label">Active Sequence Phase</div>
+        <div id="phase-badge" class="phase-idle">
+          <i class="bi bi-hourglass"></i> <span>Idle / Awaiting Start</span>
+        </div>
+      </div>
+
+      <div class="badge-item">
+        <div class="badge-label">Inference Probability Metrics</div>
+        <div id="label-container" class="prediction-list">
+          <div style="color: var(--text-muted); font-size: 0.9rem; font-style: italic;">
+            <i class="bi bi-info-circle"></i> No active models loaded.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+
+  <script>
+    const MODEL_URL = "./my_model/";
+    const BASE_URL = "http://10.56.79.155"; 
+
+    let model, maxPredictions, labelContainer;
+    let streamImg, videoPlaceholder, canvas, ctx;
+    let running = false;
+
+    // UI Cache Elements
+    const btnStart = document.getElementById("btn-start");
+    const btnStop = document.getElementById("btn-stop");
+    const btnToggle = document.getElementById("btn-toggle");
+    const sysStatus = document.getElementById("status-val");
+    const phaseBadge = document.getElementById("phase-badge");
+
+    // Theme Logic Handlers
+    function initTheme() {
+      const savedTheme = localStorage.getItem("theme") || "dark";
+      document.documentElement.setAttribute("data-theme", savedTheme);
+      updateThemeUI(savedTheme);
+    }
+
+    function toggleTheme() {
+      const currentTheme = document.documentElement.getAttribute("data-theme");
+      const newTheme = currentTheme === "light" ? "dark" : "light";
+      document.documentElement.setAttribute("data-theme", newTheme);
+      localStorage.setItem("theme", newTheme);
+      updateThemeUI(newTheme);
+    }
+
+    function updateThemeUI(theme) {
+      const icon = document.getElementById("theme-icon");
+      const text = document.getElementById("theme-text");
+      if (theme === "light") {
+        icon.className = "bi bi-moon-stars-fill";
+        text.innerText = "Dark";
+      } else {
+        icon.className = "bi bi-sun-fill";
+        text.innerText = "Light";
+      }
+    }
+
+    // Run layout configuration state initialization
+    initTheme();
+
+    function updatePhase(text, styleClass, iconClass) {
+      phaseBadge.className = styleClass;
+      phaseBadge.innerHTML = `<i class="bi ${iconClass}"></i> <span>${text}</span>`;
+    }
+
+    // Independent Toggle API invocation handler
+    async function toggleGate() {
+      if (running) return; // Safeguard configuration block
+      
+      try {
+        btnToggle.disabled = true;
+        sysStatus.innerHTML = `<i class="bi bi-arrow-repeat spin"></i> Transmitting Toggle Command...`;
+        sysStatus.style.color = "var(--accent-purple)";
+
+        const response = await fetch(`${BASE_URL}/toggle`);
+        if (response.ok) {
+          sysStatus.innerHTML = `<i class="bi bi-check-circle-fill"></i> Toggle Executed Successfully`;
+          sysStatus.style.color = "var(--accent-green)";
+        } else {
+          sysStatus.innerHTML = `<i class="bi bi-x-circle-fill"></i> Toggle Response State Rejected: ${response.status}`;
+          sysStatus.style.color = "var(--accent-red)";
+        }
+      } catch (err) {
+        console.error("Endpoint handshake failure on /toggle:", err);
+        sysStatus.innerHTML = `<i class="bi bi-wifi-off"></i> Toggle Transmission Drop Event`;
+        sysStatus.style.color = "var(--accent-red)";
+      } finally {
+        // Only restore enable state if pipeline hasn't been activated during request window
+        if (!running) {
+          btnToggle.disabled = false;
+        }
+      }
+    }
+
+    async function startInference() {
+      if (running) return;
+      
+      try {
+        sysStatus.innerHTML = `<i class="bi bi-arrow-repeat spin"></i> Compiling Neural Network...`;
+        sysStatus.style.color = "var(--accent-blue)";
+        
+        // Disable Run and manual configuration Toggle button instantly
+        btnStart.disabled = true;
+        btnToggle.disabled = true;
+
+        model = await tmImage.load(MODEL_URL + "model.json", MODEL_URL + "metadata.json");
+        maxPredictions = model.getTotalClasses();
+        
+        labelContainer = document.getElementById("label-container");
+        labelContainer.innerHTML = "";
+        
+        for (let i = 0; i < maxPredictions; i++) {
+          const barWrap = document.createElement("div");
+          barWrap.className = "prediction-bar-container";
+          barWrap.innerHTML = `
+            <div class="pred-fill" id="fill-${i}" style="width: 0%"></div>
+            <div class="pred-meta">
+              <span id="class-${i}">---</span>
+              <span id="val-${i}">0.0%</span>
+            </div>
+          `;
+          labelContainer.appendChild(barWrap);
+        }
+
+        streamImg = document.getElementById("stream-img");
+        videoPlaceholder = document.getElementById("video-placeholder");
+        
+        canvas = document.createElement("canvas");
+        canvas.width = 224;
+        canvas.height = 224;
+        ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+        running = true;
+        btnStop.disabled = false;
+        sysStatus.innerHTML = `<i class="bi bi-check-circle-fill"></i> Connected & Processing`;
+        sysStatus.style.color = "var(--accent-green)";
+
+        runCycle();
+      } catch (err) {
+        console.error(err);
+        sysStatus.innerHTML = `<i class="bi bi-exclamation-triangle-fill"></i> Initialization Fault`;
+        sysStatus.style.color = "var(--accent-red)";
+        btnStart.disabled = false;
+        btnToggle.disabled = false; // Restore manual command control on hardware faults
+      }
+    }
+
+    async function runCycle() {
+      if (!running) return;
+
+      // 1. Live Preview Phase (5 seconds)
+      updatePhase("Live Preview Active (5s)", "phase-preview", "bi-eye-fill");
+      startPreview();
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      
+      if (!running) return;
+
+      // 2. Capture Phase
+      updatePhase("Capturing Frame Hardware...", "phase-capture", "bi-camera-fill");
+      stopPreview();  
+
+      const captureImg = await fetchCapture();
+      if (!running) return;
+
+      // 3. Prediction Phase
+      let topPredictionClass = "";
+      if (captureImg) {
+        updatePhase("Tensor Engine Analyzing...", "phase-predict", "bi-cpu-fill");
+        topPredictionClass = await predict(captureImg);
+      } else {
+        topPredictionClass = "no_object";
+      }
+
+      if (!running) return;
+
+      // 4. API Hardware Command Update Phase
+      updatePhase("Syncing Routing Decision...", "phase-api", "bi-send-fill");
+      
+      const normalizedClass = topPredictionClass.toLowerCase().trim();
+      let detectionType = 2; // Default fallback
+
+      if (normalizedClass.includes("no_object") || 
+          normalizedClass.includes("no object") || 
+          normalizedClass.includes("no movement") || 
+          normalizedClass === "") {
+        detectionType = 90; 
+      } else if (normalizedClass.includes("non_hazardous") || normalizedClass.includes("non-hazardous")) {
+        detectionType = 2;
+      } else if (normalizedClass.includes("hazardous")) {
+        detectionType = 1;
+      }
+
+      await sendDetectionCommand(detectionType);
+
+      if (!running) return;
+
+      // 5. Cooldown/Interval Standby Phase (3 seconds)
+      updatePhase("Cycle Interval Standby (3s)", "phase-idle", "bi-hourglass-split");
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      if (running) runCycle(); 
+    }
+
+    function startPreview() {
+      if (!running) return;
+      videoPlaceholder.style.display = "none";
+      streamImg.style.display = "block";
+      const timestamp = Date.now();
+      streamImg.src = `${BASE_URL}/stream?t=${timestamp}`;
+    }
+
+    function stopPreview() {
+      streamImg.src = "";   
+      streamImg.style.display = "none";
+      videoPlaceholder.style.display = "flex";
+    }
+
+    async function fetchCapture() {
+      try {
+        const response = await fetch(`${BASE_URL}/capture?t=${Date.now()}`);
+        if (!response.ok) throw new Error("Hardware frame capture error.");
+        
+        const blob = await response.blob();
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        
+        return new Promise((resolve) => {
+          img.onload = () => resolve(img);
+          img.onerror = () => resolve(null);
+          img.src = URL.createObjectURL(blob);
+        });
+      } catch (e) {
+        console.error("Frame receipt failure:", e);
+        return null;
+      }
+    }
+
+    async function predict(inputImg) {
+      if (!model || !inputImg) return "no_object";
+
+      try {
+        ctx.drawImage(inputImg, 0, 0, canvas.width, canvas.height);
+        const predictions = await model.predict(canvas);
+        
+        let highestProb = -1;
+        let bestMatchClass = "";
+
+        for (let i = 0; i < maxPredictions; i++) {
+          const p = predictions[i];
+          const percent = (p.probability * 100).toFixed(1);
+          
+          document.getElementById(`class-${i}`).innerText = p.className;
+          document.getElementById(`val-${i}`).innerText = `${percent}%`;
+          document.getElementById(`fill-${i}`).style.width = `${percent}%`;
+
+          if (p.probability > highestProb) {
+            highestProb = p.probability;
+            bestMatchClass = p.className;
+          }
+        }
+        return bestMatchClass;
+      } catch (e) {
+        console.error("Tensor evaluation fault:", e);
+        return "no_object";
+      }
+    }
+
+    async function sendDetectionCommand(typeId) {
+      try {
+        sysStatus.innerHTML = `<i class="bi bi-broadcast"></i> Emitting Command: Type ${typeId}...`;
+        const response = await fetch(`${BASE_URL}/detect?type=${typeId}`);
+        if (response.ok) {
+          sysStatus.innerHTML = `<i class="bi bi-check-circle-fill"></i> Command Type ${typeId} Dispatched`;
+          sysStatus.style.color = "var(--accent-green)";
+        } else {
+          sysStatus.innerHTML = `<i class="bi bi-x-circle-fill"></i> Target Rejected Flag: ${response.status}`;
+          sysStatus.style.color = "var(--accent-red)";
+        }
+      } catch (err) {
+        console.error("Endpoint handshake failure on /detect:", err);
+        sysStatus.innerHTML = `<i class="bi bi-wifi-off"></i> Transmission Drop Event (Type ${typeId})`;
+        sysStatus.style.color = "var(--accent-red)";
+      }
+    }
+
+    function stopInference() {
+      running = false;
+      stopPreview();
+      
+      // Re-enable Run operations and manual Toggle hardware controls
+      btnStart.disabled = false;
+      btnStop.disabled = true;
+      btnToggle.disabled = false; 
+
+      sysStatus.innerHTML = `<i class="bi bi-dash-circle-fill"></i> System Interrupted`;
+      sysStatus.style.color = "var(--text-muted)";
+      updatePhase("Idle / Awaiting Start", "phase-idle", "bi-hourglass");
+    }
+  </script>
+</body>
+</html>
