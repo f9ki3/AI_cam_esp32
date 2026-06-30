@@ -15,7 +15,7 @@
       --accent-blue: #3b82f6;
       --accent-green: #10b981;
       --accent-red: #ef4444;
-      --accent-purple: #8b5cf6;
+
       --text-main: #f8fafc;
       --text-muted: #94a3b8;
       --border: #334155;
@@ -31,7 +31,7 @@
       --accent-blue: #1d4ed8;
       --accent-green: #047857;
       --accent-red: #b91c1c;
-      --accent-purple: #6d28d9;
+
       --text-main: #1e3a8a; 
       --text-muted: #64748b;
       --border: #cbd5e1;
@@ -195,9 +195,10 @@
 
     .btn-toggle-gate {
       width: 100%;
-      background-color: var(--accent-purple);
+      background-color: var(--accent-blue);
       color: white;
     }
+
     .btn-toggle-gate:hover { opacity: 0.9; }
 
     button:disabled {
@@ -249,7 +250,8 @@
     /* Dynamic Phase Accent Styling */
     .phase-preview { background-color: rgba(59, 130, 246, 0.12) !important; border-color: var(--accent-blue) !important; color: var(--accent-blue); }
     .phase-capture { background-color: rgba(245, 158, 11, 0.12) !important; border-color: #f59e0b !important; color: #d97706; }
-    .phase-predict { background-color: rgba(139, 92, 246, 0.12) !important; border-color: var(--accent-purple) !important; color: var(--accent-purple); }
+    .phase-predict { background-color: rgba(59, 130, 246, 0.12) !important; border-color: var(--accent-blue) !important; color: var(--accent-blue); }
+
     .phase-api { background-color: rgba(16, 185, 129, 0.12) !important; border-color: var(--accent-green) !important; color: var(--accent-green); }
     .phase-idle { color: var(--text-muted); }
 
@@ -365,7 +367,7 @@
 
   <script>
     const MODEL_URL = "./my_model/";
-    const BASE_URL = "http://10.56.79.155"; 
+    const BASE_URL = "http://192.168.119.155"; 
 
     let model, maxPredictions, labelContainer;
     let streamImg, videoPlaceholder, canvas, ctx;
@@ -420,7 +422,8 @@
       try {
         btnToggle.disabled = true;
         sysStatus.innerHTML = `<i class="bi bi-arrow-repeat spin"></i> Transmitting Toggle Command...`;
-        sysStatus.style.color = "var(--accent-purple)";
+        sysStatus.style.color = "var(--accent-blue)";
+
 
         const response = await fetch(`${BASE_URL}/toggle`);
         if (response.ok) {
